@@ -1,9 +1,5 @@
 SHELL=/bin/sh
 
-COMMAND=pdf
-
-MAIN=main.cpp
-
 SRCS= \
 GF.cpp \
 Halo.cpp \
@@ -12,7 +8,9 @@ NFW.cpp \
 PS.cpp \
 TF.cpp \
 MF.cpp \
-PDF.cpp 
+PDF.cpp \
+CDF.cpp \
+grid.cpp
 
 HDRS= \
 GF.h \
@@ -22,9 +20,11 @@ NFW.h \
 PS.h \
 TF.h \
 MF.h \
-PDF.h
+PDF.h \
+CDF.h \
+grid.h
 
-TEST_UTILS= convolve integrate integrate_std difference test_halo test_mf test_ps test_ps_var test_all
+UTILS= pdf nongaussian convolve integrate integrate_std integrate_weighted difference test_halo test_mf test_ps test_ps_var test_all
 
 ###########################################################################
 # Commands and options for compiling
@@ -42,11 +42,14 @@ LDFLAGS= -lgsl -lgslcblas -lgomp
 # Instructions to compile and link -- allow for different dependencies
 ########################################################################### 
  
-$(COMMAND): $(MAIN) $(OBJS) $(HDRS) $(MAKEFILE) 
-	$(CC) -o $(COMMAND) $(OBJS) $(MAIN) $(LDFLAGS) $(LIBS)
-
 %.o: %.cpp $(HDRS) $(MAKEFILE)
 	$(CC) $(CFLAGS) $(WARNFLAGS) -c $< -o $@
+    
+pdf: main.cpp $(OBJS) $(HDRS) $(MAKEFILE) 
+	$(CC) -o pdf $(OBJS) main.cpp $(LDFLAGS) $(LIBS)
+
+nongaussian: nongaussian_main.cpp $(OBJS) $(HDRS) $(MAKEFILE) 
+	$(CC) -o nongaussian $(OBJS) nongaussian_main.cpp $(LDFLAGS) $(LIBS)
 	
 convolve: convolve.cpp $(OBJS) $(HDRS) $(MAKEFILE) 
 	$(CC) -o convolve convolve.cpp $(CFLAGS) $(LDFLAGS) $(LIBS) 
@@ -79,4 +82,4 @@ test_all: test_all.cpp $(OBJS) $(HDRS) $(MAKEFILE)
 	$(CC) -o test_all $(OBJS) test_all.cpp $(CFLAGS) $(LDFLAGS) $(LIBS)
 
 clean:
-	rm -f $(OBJS) $(COMMAND) $(TEST_UTILS)
+	rm -f $(OBJS) $(UTILS)
