@@ -24,7 +24,7 @@ PDF.h \
 CDF.h \
 grid.h
 
-UTILS= pdf nongaussian convolve integrate integrate_std integrate_weighted difference test_halo test_mf test_ps test_ps_var test_all
+UTILS= pdf nongaussian convolve integrate integrate_std integrate_weighted difference test_halo test_halo_pdf test_mf test_ps test_ps_var test_all
 
 ###########################################################################
 # Commands and options for compiling
@@ -68,6 +68,9 @@ difference: difference.cpp $(OBJS) $(HDRS) $(MAKEFILE)
 
 test_halo: test_halo.cpp $(OBJS) $(HDRS) $(MAKEFILE) 
 	$(CC) -o test_halo $(OBJS) test_halo.cpp $(CFLAGS) $(LDFLAGS) $(LIBS)
+
+test_halo_pdf: test_halo_pdf.cpp $(OBJS) $(HDRS) $(MAKEFILE)
+	$(CC) -o test_halo_pdf $(OBJS) test_halo_pdf.cpp $(CFLAGS) $(LDFLAGS) $(LIBS)
 
 test_mf: test_mf.cpp $(OBJS) $(HDRS) $(MAKEFILE) 
 	$(CC) -o test_mf $(OBJS) test_mf.cpp $(CFLAGS) $(LDFLAGS) $(LIBS)

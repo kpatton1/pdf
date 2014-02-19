@@ -115,6 +115,8 @@ double gsl_area_integral(double lnm, void* params)
     double r200 = exp(1.0/3.0 * (lnm + log(3.0 / (800.0 * M_PI))));
 
     double result = dn_dlnm * r200 * r200;
+    
+    return result;
 }
 
 double gsl_pdf_integral(double lnm, void* params)
@@ -130,6 +132,8 @@ double gsl_pdf_integral(double lnm, void* params)
     double r200 = exp(1.0/3.0 * (lnm + log(3.0 / (800.0 * M_PI))));
 
     double result = pdf_halo * dn_dlnm * r200 * r200;
+    
+    return result;
 }
 
 #endif

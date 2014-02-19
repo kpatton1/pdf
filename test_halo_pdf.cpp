@@ -18,7 +18,7 @@ int main()
     double p = Om * pc;
     
     double m_p_min = 1.0e0 / p;
-    double m_p_max = 1.0e16 / p;    
+    double m_p_max = 1.0e16 / p;
     
     Halo* halo = new Halo_NFW(1e-10, 10.0, 1000000);
     
@@ -30,14 +30,12 @@ int main()
     
     double r200 = exp(1.0/3.0 * (log(m_p) + log(3.0 / (800.0 * M_PI))));
     
-//    double m_p = factor * factor * factor * (800.0 * M_PI) / 3.0;
+    //    double m_p = factor * factor * factor * (800.0 * M_PI) / 3.0;
     
-    for(double e_p = 1.0e-4; e_p < 1e10; e_p = e_p * 1.01)
+    for(double e_p = 1.0e-10; e_p < 1e10; e_p = e_p * 1.05)
     {
         double prob = halo->PDF(log(e_p), log(m_p), 10.0);
         
         std::cout << log(e_p) << " " << prob << std::endl;
     }
-
-
 }
