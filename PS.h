@@ -103,6 +103,23 @@ public:
     };
 };
 
+class PS_2D : public PS
+{
+private:
+    PS* ps;
+public:
+    PS_2D(PS* ps)
+    {
+        this->ps = ps;
+    };
+    
+    double p(double k, double z)
+    {
+    
+    };
+    
+};
+
 class PS_LSS : public PS
 {
 private:

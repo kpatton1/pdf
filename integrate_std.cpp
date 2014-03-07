@@ -28,8 +28,8 @@ int main()
             continue;
         }
         
-        E_p_array[i] = exp(E_p);
-        prob_array[i] = prob / (exp(E_p)) * prob / (exp(E_p));
+        E_p_array[i] = E_p;
+        prob_array[i] = prob * (exp(E_p)) * (exp(E_p));
         
         i++;
         

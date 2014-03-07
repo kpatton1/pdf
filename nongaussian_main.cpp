@@ -47,7 +47,7 @@ double p2_l(double l)
     }
     
     double pl = gsl_interp_eval(ps_interp, k_array, ps_array, k, ps_interp_accel);
-    pl = pl / (4.0 * M_PI * l * l * l);
+    pl = pl / (2.0 * M_PI  * l * l);
    
     return pl;
 }
@@ -55,7 +55,7 @@ double p2_l(double l)
 void print(double l, double pl)
 {
     double k = 2.0 * M_PI * l / GRID_L;
-    double pk = (4.0 * M_PI * l * l * l) * pl;
+    double pk = (2.0 * M_PI * l * l) * pl;
     
     std::cout << k << " " << pk << std::endl;
 }
@@ -131,7 +131,7 @@ int main(int argc, char* argv[])
     
     field.fft_x_to_l();
     
-    field.print_ps(&print);
+    //field.print_ps(&print);
 
     return 0;
 }

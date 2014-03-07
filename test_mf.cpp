@@ -28,14 +28,16 @@ int main()
     
     MF* mf = new MF_PS(ps);
     
-    double lnm_min = log(1.0e-10 / p);
+    double lnm_min = log(1.0e0 / p);
     double lnm_max = log(1.0e18 / p);
     
     for(double lnm = lnm_min; lnm < lnm_max; lnm += log(1.05))
     {
         double mdn_dlnm = mf->mdn_dlnm(lnm, 0.0);
         
-        std::cout << lnm << " " << mdn_dlnm << std::endl;
+        double r200 = exp(1.0/3.0 * (lnm + log(3.0 / (800.0 * M_PI))));
+        
+        std::cout << exp(lnm) * p << " " << lnm << " " << mdn_dlnm << " " << r200 << std::endl;
     }
     
     return 0;
