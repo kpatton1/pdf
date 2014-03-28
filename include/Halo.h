@@ -9,7 +9,9 @@
 class Halo
 {
 public:
-    virtual double PDF(double lne, double lnm, double c) { return 0.0; };
+    virtual double PDF(double lne, double lnm, double c) { return 0.0; }
+
+    virtual ~Halo(){}
 /*    double (*f)(double);
     
     int N;

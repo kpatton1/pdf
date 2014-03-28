@@ -3,15 +3,17 @@
 
 #include <iostream>
 #include "gsl/gsl_cdf.h"
+#include "gsl/gsl_interp.h"
+#include <cmath>
 
 class CDF
 {
 public:
-    virtual double cdf(double lnx) { return 0.0; };
+    virtual double cdf(double lnx) { return 0.0; }
     
-    virtual double cdf_inv(double cdf) { return 0.0; };
+    virtual double cdf_inv(double cdf) { return 0.0; }
     
-    virtual ~CDF() { };
+    virtual ~CDF() { }
 
 };
 
@@ -31,7 +33,7 @@ public:
     
     double cdf_inv(double cdf)
     {
-    
+    	return 0.0;
     };
 };
 

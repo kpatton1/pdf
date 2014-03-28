@@ -60,7 +60,7 @@ int main()
         std::cout << k << " " << pk << std::endl;
     }*/
     
-    double var = ps->var(7.878, 0.0);
+    double var = ps->sigma2_tophat(7.878, 0.0);
     
     double m = p * 4.0 * M_PI * 7.878 * 7.878 * 7.878 / 3.0;
     

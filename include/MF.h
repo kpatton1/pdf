@@ -7,8 +7,9 @@
 class MF
 {
 public:
-    virtual double dn_dlnm(double lnm, double z) { return 0.0; };   
-    virtual double mdn_dlnm(double lnm, double z) { return 0.0; }; 
+    virtual double dn_dlnm(double lnm, double z) { return 0.0; }
+    virtual double mdn_dlnm(double lnm, double z) { return 0.0; }
+    virtual ~MF(){}
 };
 
 class MF_PS : public MF
@@ -28,8 +29,8 @@ public:
         //double r = pow(m_p * 3.0 / (4.0 * M_PI), 1.0/3.0);
         double r = exp(1.0/3.0 * (lnm + log(3.0 / (4.0 * M_PI))));
         double m = exp(lnm);
-        double var = this->ps->var(r, z);
-        double dvar_dr = this->ps->dvar_dr(r, z);
+        double var = this->ps->sigma2_tophat(r, z);
+        double dvar_dr = this->ps->dsigma2_tophat(r, z);
         double f = sqrt(2.0 / (M_PI*var)) * dc * exp(-0.5 * dc * dc / var);
         
         double result = -0.5 * f * dvar_dr * r / (3.0 * m * var);
@@ -41,15 +42,14 @@ public:
     {
         //double r = pow(m_p * 3.0 / (4.0 * M_PI), 1.0/3.0);
         double r = exp(1.0/3.0 * (lnm + log(3.0 / (4.0 * M_PI))));
-        double var = this->ps->var(r, z);
-        double dvar_dr = this->ps->dvar_dr(r, z);
+        double var = this->ps->sigma2_tophat(r, z);
+        double dvar_dr = this->ps->dsigma2_tophat(r, z);
         double f = sqrt(2.0 / (M_PI*var)) * dc * exp(-0.5 * dc * dc / var);
         
         double result = -0.5 * f * dvar_dr * r / (3.0 * var);
         
         return result;
     }
-
 };
 
 #endif
