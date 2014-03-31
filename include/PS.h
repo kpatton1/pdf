@@ -3,67 +3,60 @@
 
 #include <cmath>
 #include "gsl/gsl_integration.h"
+#include <gsl/gsl_roots.h>
 
 #include "TF.h"
 #include "GF.h"
 
 
-struct filter
-{
-    double (*f)(double kr);
-    double (*df)(double kr);
-};
 
-double filter_tophat_f(double kr)
-{
-    double result = 3.0 * (sin(kr) - kr * cos(kr)) / (kr * kr * kr);
-
-    return result;
-}
-
-double filter_tophat_df(double kr)
-{
-    double kr2 = kr * kr;
-    double kr4 = kr2 * kr2;
-
-    double result = 3.0 * (kr2 * sin(kr) + 3.0 * kr * cos(kr) - 3.0 * sin(kr)) / kr4;
-
-    return result;
-}
-
-filter filter_tophat = {filter_tophat_f, filter_tophat_df};
-
-static double filter_gaussian_f(double kr)
-{
-    double kr2 = kr * kr;
-
-    double result = exp(-kr2);
-
-    return result;
-}
-
-static double filter_gaussian_df(double kr)
-{
-    double kr2 = kr * kr;
-
-    double result = exp(-kr2) * (-2.0 * kr);
-
-    return result;
-}
-
-filter filter_gaussian = {filter_gaussian_f, filter_gaussian_df};
 
 class PS
 {
 protected:
     gsl_integration_cquad_workspace* w;
 
+    static double filter_tophat_f(double kr)
+    {
+        double fk = 3.0 * (sin(kr) - kr * cos(kr)) / (kr * kr * kr);
 
+        return fk*fk;
+    }
+
+    static double filter_tophat_df(double kr)
+    {
+        double fk = 3.0 * (sin(kr) - kr * cos(kr)) / (kr * kr * kr);
+
+        double dfk = 3.0 * (kr*kr * sin(kr) + 3.0 * kr * cos(kr) - 3.0 * sin(kr)) / (kr*kr*kr*kr);
+
+        return 2.0*fk*dfk*kr;
+    }
+
+    static double filter_gaussian_f(double kr)
+    {
+        double result = exp(-kr*kr);
+
+        return result;
+    }
+
+    static double filter_gaussian_df(double kr)
+    {
+        double result = exp(-kr*kr) * (-2.0 * kr);
+
+        return result*kr;
+    }
+
+    static double filter_gaussian_d2f(double kr)
+    {
+        double result = exp(-kr*kr) * (-2.0 - 4.0 * kr);
+
+        return result*kr*kr;
+    }
 
     struct sigma2_filtered_integral_struct
     {
         PS* ps;
-        struct filter* filter;
+        double (*filter)(double);
         double r;
         double z;
     };
@@ -77,37 +70,15 @@ protected:
         double r = s->r;
         double z = s->z;
 
-        double fk = s->filter->f(kr);
+        double fk = s->filter(kr);
         double pk = s->ps->p(kr / r, z);
 
-        double result = fk * fk * pk / kr / (1.0 - x) / (1.0 - x);
+        double result = fk * pk / kr / (1.0 - x) / (1.0 - x);
 
         return result;
     }
 
-    static double dsigma2_filtered_integral(double x, void* params)
-    {
-        sigma2_filtered_integral_struct* s = (sigma2_filtered_integral_struct*) params;
-
-        double kr = x / (1.0 - x);
-
-        double r = s->r;
-        double z = s->z;
-
-        double fk = s->filter->f(kr);
-        double dfk = s->filter->df(kr);
-        double pk = s->ps->p(kr / r, z);
-
-        double result = 2.0 * dfk * fk * pk / (1.0 - x) / (1.0 - x);
-
-        return result;
-    }
-
-
-
-
-
-    double sigma2(double r, double z, filter* filter)
+    double sigma2(double r, double z, double (*filter)(double))
     {
         double result;
         double error;
@@ -129,28 +100,6 @@ protected:
         return result;
     }
 
-    double dsigma2(double r, double z, filter* filter)
-    {
-        double result;
-        double error;
-        size_t nevals;
-
-        gsl_function f;
-        f.function = &dsigma2_filtered_integral;
-
-        sigma2_filtered_integral_struct params;
-        params.ps = this;
-        params.filter = filter;
-        params.r = r;
-        params.z = z;
-
-        f.params = &params;
-
-        gsl_integration_cquad(&f, 0.0, 1.0, 1e-9, 1e-7, this->w, &result, &error, &nevals);
-
-        return result / r;
-    }
-
 public:
     PS()
     {
@@ -164,22 +113,27 @@ public:
 
     double sigma2_tophat(double r, double z)
     {
-        return sigma2(r,z,&filter_tophat);
+        return sigma2(r,z,&filter_tophat_f);
     }
 
     double dsigma2_tophat(double r, double z)
     {
-        return dsigma2(r,z,&filter_tophat);
+        return sigma2(r,z,&filter_tophat_df)/r;
     }
 
     double sigma2_gaussian(double r, double z)
     {
-        return sigma2(r,z,&filter_gaussian);
+        return sigma2(r,z,&filter_gaussian_f);
     }
 
     double dsigma2_gaussian(double r, double z)
     {
-        return dsigma2(r,z,&filter_gaussian);
+        return sigma2(r,z,&filter_gaussian_df)/r;
+    }
+
+    double d2sigma2_gaussian(double r, double z)
+    {
+        return sigma2(r,z,&filter_gaussian_d2f)/r/r;
     }
 
     virtual ~PS()
@@ -299,16 +253,117 @@ class PS_HALOFIT: public PS
 private:
     PS* ps;
 
+    double r_sigma = 8.0;
+
+    double n_eff = 0.0;
+    double C = 0.0;
+
+    struct nonlinear_scale_struct
+    {
+        PS* ps;
+        double z;
+    };
+
+    static double nonlinear_scale(double r, void* params)
+    {
+        nonlinear_scale_struct* s = (nonlinear_scale_struct*) params;
+
+        return s->ps->sigma2_gaussian(r, s->z) - 1.0;
+    }
+
+    const int max_iterations = 1000;
+
 public:
-    PS_HALOFIT(PS* ps)
+    PS_HALOFIT(PS* ps, double z)
     {
         this->ps = ps;
+
+        gsl_function F;
+        nonlinear_scale_struct s;
+
+        F.function = nonlinear_scale;
+        s.ps = this->ps;
+        s.z = z;
+
+        F.params = &s;
+
+        gsl_root_fsolver *solver;
+        solver = gsl_root_fsolver_alloc(gsl_root_fsolver_brent);
+        gsl_root_fsolver_set(solver, &F, 1.0e-3, 1.0e3);
+
+        int iter = 0;
+        while(iter < max_iterations)
+        {
+            int status = gsl_root_fsolver_iterate(solver);
+
+            if (status == GSL_EBADFUNC)
+            {
+                std::cerr << "Error finding nonlinear scale for halofit: GSL_EBADFUNC" << std::endl;
+                std::cerr << "at value r: " << gsl_root_fsolver_root(solver) << std::endl;
+                break;
+            }
+
+            if (status == GSL_EBADFUNC)
+            {
+                std::cerr << "Error finding nonlinear scale for halofit: GSL_EZERODIV" << std::endl;
+                std::cerr << "at value r: " << gsl_root_fsolver_root(solver) << std::endl;
+                break;
+            }
+
+            double root = gsl_root_fsolver_root(solver);
+            double val = nonlinear_scale(root, &s);
+
+            status = gsl_root_test_residual(val, 1e-3);
+            if(status != GSL_CONTINUE)
+            {
+                r_sigma = val;
+                break;
+            }
+
+            iter++;
+            if(iter > max_iterations)
+            {
+                std::cerr << "Error finding nonlinear scale for halofit: did not converge after " << iter << " iterations" << std::endl;
+                std::cerr << "at value r: " << root << "  f(r): " << val << std::endl;
+                break;
+            }
+        }
+
+        gsl_root_fsolver_free(solver);
 
     }
 
     double p(double k, double z)
     {
-        return 0.0;
+        double p_lin = ps->p(k,z);
+
+        double y = k * r_sigma;
+
+        double fy = y/4.0 + y*y/8.0;
+
+        double neff = ps->dsigma2_gaussian();
+
+        double omega_m;
+        double omega_w;
+        double w;
+
+        double C;
+
+        double f1;
+        double f2;
+        double f3;
+
+        double a_n;
+        double b_n;
+        double c_n;
+        double gamma_n;
+        double alpha_n;
+        double beta_n;
+        double mu_n;
+        double nu_n;
+
+        double p_q = p_lin * (pow(1.0+p_lin,beta_n)/(1.0+alpha_n*p_lin)) * exp(-fy);
+        double p_h = ((a_n * pow(y,3*f1))/(1+b_n*pow(y,f2)+pow(c_n*f3*y,3.0-gamma_n)))/(1.0+mu_n/y + nu_n/y/y);
     }
 
     ~PS_HALOFIT()
@@ -317,11 +372,7 @@ public:
     }
 };
 
-double gsl_halofit_nonlinear(double lnk, void* params)
-{
 
-    return 0.0;
-}
 
 #endif
 
