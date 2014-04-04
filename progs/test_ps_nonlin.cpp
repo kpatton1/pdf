@@ -4,7 +4,6 @@
 #include "PS.h"
 #include "TF.h"
 #include "GF.h"
-#include "MF.h"
 
 const double G = 4.302e-9; // G in units of Mpc Msolar^-1 (km/s)^2
 
@@ -25,20 +24,26 @@ int main()
     GF* gf = new GF_LCDM();
     
     PS* ps = new PS_LSS(tf, gf, h, s8, ns);
+    PS* ps_nonlin = new PS_HALOFIT(ps, Om);
     
     double L = 10.0;
     int N = 1000;
     
-    double kmin = 2.0 * M_PI / L * 0.1;
-    double kmax = 2.0 * M_PI / L * N * 10.0;
+    //double kmin = 2.0 * M_PI / L * 0.001;
+    //double kmax = 2.0 * M_PI / L * N * 10.0;
+    double logkmin = log(1/(1000.0));
+    double logkmax = log(1/(0.0001));
     
-    int steps = 10000;
+    int steps = 1000;
     
-    for(double k = kmin; k < kmax; k += (kmax-kmin)/steps)
+    for(double logk = logkmin; logk < logkmax; logk += (logkmax-logkmin)/steps)
     {
+        double k = exp(logk);
         double pk = ps->p(k, 0.0);
+        double pk_nonlin = ps_nonlin->p(k, 0.0);
         
-        std::cout << k << " " << pk << std::endl;
+        //std::cout << k << " " << pk << " " << pk_nonlin << std::endl;
+        std::cout << k << " " << pk_nonlin << std::endl;
     }
     
     return 0;

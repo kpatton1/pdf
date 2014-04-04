@@ -12,13 +12,13 @@
 #include <iostream>
 #include <fstream>
 
-#define GRID_N 512
-#define GRID_L 10.0
+#define GRID_N 1024
+#define GRID_L GRID_N/8.6
 
 #define ALPHA -1.0
 
 #define PDF_SIZE 99
-#define PS_SIZE 10000
+#define PS_SIZE 100001
 
 double k_array[PS_SIZE];
 double ps_array[PS_SIZE];
@@ -114,10 +114,10 @@ int main(int argc, char* argv[])
     field.fill_random_l(&p2_l, rng);
     field.fft_l_to_x();
     
-    std::cerr << "Expected gaussian variance: " << field.expected_var(&p2_l, rng) << std::endl;
+    std::cerr << "Expected field variance: " << field.expected_var(&p2_l, rng) << std::endl;
 
-    std::cerr << "Measured gaussian variance: " << field.var() << std::endl;
-    std::cerr << "Measured gaussian mean: " << field.mean() << std::endl;
+    std::cerr << "Constructed field variance: " << field.var() << std::endl;
+    std::cerr << "Constructed field mean: " << field.mean() << std::endl;
     
     double var = field.expected_var(&p2_l, rng);
     
@@ -125,9 +125,8 @@ int main(int argc, char* argv[])
     
     field.remap_field_cdf(gaussian, cdf);
     
-    std::cerr << "Remapped variance: " << field.var() << std::endl;
-
-    std::cerr << "Remapped mean: " << field.mean() << std::endl;
+    std::cerr << "Remapped field variance: " << field.var() << std::endl;
+    std::cerr << "Remapped field mean: " << field.mean() << std::endl;
     
     field.fft_x_to_l();
     

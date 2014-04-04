@@ -2,7 +2,8 @@
 #define PS_H
 
 #include <cmath>
-#include "gsl/gsl_integration.h"
+#include <gsl/gsl_errno.h>
+#include <gsl/gsl_integration.h>
 #include <gsl/gsl_roots.h>
 
 #include "TF.h"
@@ -23,7 +24,7 @@ protected:
         return fk*fk;
     }
 
-    static double filter_tophat_df(double kr)
+    static double filter_tophat_r_df(double kr)
     {
         double fk = 3.0 * (sin(kr) - kr * cos(kr)) / (kr * kr * kr);
 
@@ -39,16 +40,16 @@ protected:
         return result;
     }
 
-    static double filter_gaussian_df(double kr)
+    static double filter_gaussian_r_df(double kr)
     {
         double result = exp(-kr*kr) * (-2.0 * kr);
 
         return result*kr;
     }
 
-    static double filter_gaussian_d2f(double kr)
+    static double filter_gaussian_r2_d2f(double kr)
     {
-        double result = exp(-kr*kr) * (-2.0 - 4.0 * kr);
+        double result = exp(-kr*kr) * (-2.0 + 4.0 * kr * kr);
 
         return result*kr*kr;
     }
@@ -116,9 +117,9 @@ public:
         return sigma2(r,z,&filter_tophat_f);
     }
 
-    double dsigma2_tophat(double r, double z)
+    double sigma2_r_dtophat(double r, double z)
     {
-        return sigma2(r,z,&filter_tophat_df)/r;
+        return sigma2(r,z,&filter_tophat_r_df);
     }
 
     double sigma2_gaussian(double r, double z)
@@ -126,14 +127,14 @@ public:
         return sigma2(r,z,&filter_gaussian_f);
     }
 
-    double dsigma2_gaussian(double r, double z)
+    double sigma2_r_dgaussian(double r, double z)
     {
-        return sigma2(r,z,&filter_gaussian_df)/r;
+        return sigma2(r,z,&filter_gaussian_r_df);
     }
 
-    double d2sigma2_gaussian(double r, double z)
+    double sigma2_r2_d2gaussian(double r, double z)
     {
-        return sigma2(r,z,&filter_gaussian_d2f)/r/r;
+        return sigma2(r,z,&filter_gaussian_r2_d2f);
     }
 
     virtual ~PS()
@@ -253,10 +254,16 @@ class PS_HALOFIT: public PS
 private:
     PS* ps;
 
-    double r_sigma = 8.0;
+    double z_last;
+    double r_sigma;
 
-    double n_eff = 0.0;
-    double C = 0.0;
+    double n_eff;
+    double n_eff_2;
+    double n_eff_3;
+    double n_eff_4;
+    double C;
+
+    double omega_m0;
 
     struct nonlinear_scale_struct
     {
@@ -271,99 +278,144 @@ private:
         return s->ps->sigma2_gaussian(r, s->z) - 1.0;
     }
 
-    const int max_iterations = 1000;
+    static const int max_iterations = 1000;
+
+    void update_z(double z)
+    {
+        if(z != z_last)
+        {
+            z_last = z;
+
+            gsl_function F;
+            nonlinear_scale_struct s;
+
+            F.function = nonlinear_scale;
+            s.ps = this->ps;
+            s.z = z_last;
+
+            F.params = &s;
+
+            gsl_root_fsolver *solver;
+            solver = gsl_root_fsolver_alloc(gsl_root_fsolver_brent);
+            gsl_root_fsolver_set(solver, &F, 1.0e-3, 1.0e3);
+
+            int iter = 0;
+            while(iter < max_iterations)
+            {
+                int status = gsl_root_fsolver_iterate(solver);
+
+                if (status == GSL_EBADFUNC)
+                {
+                    std::cerr << "Error finding nonlinear scale for halofit: GSL_EBADFUNC" << std::endl;
+                    std::cerr << "at value r: " << gsl_root_fsolver_root(solver) << std::endl;
+                    break;
+                }
+
+                if (status == GSL_EZERODIV)
+                {
+                    std::cerr << "Error finding nonlinear scale for halofit: GSL_EZERODIV" << std::endl;
+                    std::cerr << "at value r: " << gsl_root_fsolver_root(solver) << std::endl;
+                    break;
+                }
+
+                double root = gsl_root_fsolver_root(solver);
+                double val = nonlinear_scale(root, &s);
+
+                status = gsl_root_test_residual(val, 1e-5);
+                if(status != GSL_CONTINUE)
+                {
+                    r_sigma = root;
+                    double sigma = ps->sigma2_gaussian(r_sigma, z_last);
+                    double r_dsigma2 = ps->sigma2_r_dgaussian(r_sigma, z_last) / sigma;
+                    double r2_d2sigma2 = ps->sigma2_r2_d2gaussian(r_sigma, z_last) / sigma;
+
+                    n_eff = -3.0 - r_dsigma2;
+                    n_eff_2 = n_eff * n_eff;
+                    n_eff_3 = n_eff_2 * n_eff;
+                    n_eff_4 = n_eff_3 * n_eff;
+                    C = r_dsigma2*r_dsigma2 - r_dsigma2 - r2_d2sigma2;
+
+                    std::cerr << "r_sigma: " << r_sigma << "  sigma: " << sigma << "  r_dsigma2: " << r_dsigma2 << "  r2_d2sigma2: " << r2_d2sigma2 << std::endl;
+                    std::cerr << "n_eff: " << n_eff << "  C: " << C << std::endl;
+
+                    break;
+                }
+
+                iter++;
+                if(iter > max_iterations)
+                {
+                    std::cerr << "Error finding nonlinear scale for halofit: did not converge after " << iter << " iterations" << std::endl;
+                    std::cerr << "at value r: " << root << "  f(r): " << val << std::endl;
+                    break;
+                }
+            }
+
+            gsl_root_fsolver_free(solver);
+        }
+    }
 
 public:
-    PS_HALOFIT(PS* ps, double z)
+    PS_HALOFIT(PS* ps, double omega_m0)
     {
         this->ps = ps;
+        this->omega_m0 = omega_m0;
 
-        gsl_function F;
-        nonlinear_scale_struct s;
+        this->z_last = -1.0;
+        this->r_sigma = 8.0;
 
-        F.function = nonlinear_scale;
-        s.ps = this->ps;
-        s.z = z;
+        this->n_eff = 0.0;
+        this->n_eff_2 = 0.0;
+        this->n_eff_3 = 0.0;
+        this->n_eff_4 = 0.0;
+        this->C = 0.0;
 
-        F.params = &s;
-
-        gsl_root_fsolver *solver;
-        solver = gsl_root_fsolver_alloc(gsl_root_fsolver_brent);
-        gsl_root_fsolver_set(solver, &F, 1.0e-3, 1.0e3);
-
-        int iter = 0;
-        while(iter < max_iterations)
-        {
-            int status = gsl_root_fsolver_iterate(solver);
-
-            if (status == GSL_EBADFUNC)
-            {
-                std::cerr << "Error finding nonlinear scale for halofit: GSL_EBADFUNC" << std::endl;
-                std::cerr << "at value r: " << gsl_root_fsolver_root(solver) << std::endl;
-                break;
-            }
-
-            if (status == GSL_EBADFUNC)
-            {
-                std::cerr << "Error finding nonlinear scale for halofit: GSL_EZERODIV" << std::endl;
-                std::cerr << "at value r: " << gsl_root_fsolver_root(solver) << std::endl;
-                break;
-            }
-
-            double root = gsl_root_fsolver_root(solver);
-            double val = nonlinear_scale(root, &s);
-
-            status = gsl_root_test_residual(val, 1e-3);
-            if(status != GSL_CONTINUE)
-            {
-                r_sigma = val;
-                break;
-            }
-
-            iter++;
-            if(iter > max_iterations)
-            {
-                std::cerr << "Error finding nonlinear scale for halofit: did not converge after " << iter << " iterations" << std::endl;
-                std::cerr << "at value r: " << root << "  f(r): " << val << std::endl;
-                break;
-            }
-        }
-
-        gsl_root_fsolver_free(solver);
-
+        this->update_z(0.0);
     }
 
     double p(double k, double z)
     {
+        this->update_z(z);
+
         double p_lin = ps->p(k,z);
 
         double y = k * r_sigma;
 
         double fy = y/4.0 + y*y/8.0;
 
-        double neff = ps->dsigma2_gaussian();
+        double a3_inv = (1.0 + z)*(1.0 + z)*(1.0 + z);
+        double omega_w0 = 1.0 - omega_m0;
+        double w = 0.0;
 
-        double omega_m;
-        double omega_w;
-        double w;
+        double omega_m = omega_m0 * a3_inv / (omega_m0 * a3_inv + omega_w0);
+        double omega_w = omega_w0 / (omega_m0 * a3_inv + omega_w0);
 
-        double C;
+        double f1 = pow(omega_m, -0.0307);
+        double f2 = pow(omega_m, -0.0585);
+        double f3 = pow(omega_m, 0.0743);
 
-        double f1;
-        double f2;
-        double f3;
-
-        double a_n;
-        double b_n;
-        double c_n;
-        double gamma_n;
-        double alpha_n;
-        double beta_n;
-        double mu_n;
-        double nu_n;
+        double a_n = pow(10.0, 1.5222+2.8553*n_eff+2.3706*n_eff_2+0.9903*n_eff_3+0.2250*n_eff_4-0.6038*C+0.1749*omega_w*(1.0+w));
+        double b_n = pow(10.0, -0.5642+0.5864*n_eff+0.5716*n_eff_2-1.5474*C+0.2279*omega_w*(1.0+w));
+        double c_n = pow(10.0, 0.3698+2.0404*n_eff+0.8161*n_eff_2+0.5869*C);
+        double gamma_n = 0.1971-0.0843*n_eff+0.8460*C;
+        double alpha_n = abs(6.0835+1.3373*n_eff-0.1959*n_eff_2-5.5274*C);
+        double beta_n = 2.0379-0.7354*n_eff+0.3157*n_eff_2+1.2490*n_eff_3+0.3980*n_eff_4-0.1682*C;
+        double mu_n = 0.0;
+        double nu_n = pow(10.0, 5.2105+3.6902*n_eff);
 
         double p_q = p_lin * (pow(1.0+p_lin,beta_n)/(1.0+alpha_n*p_lin)) * exp(-fy);
         double p_h = ((a_n * pow(y,3*f1))/(1+b_n*pow(y,f2)+pow(c_n*f3*y,3.0-gamma_n)))/(1.0+mu_n/y + nu_n/y/y);
+
+        double p_nonlin = p_q + p_h;
+
+        /*std::cerr << "r_sigma: " << r_sigma << "  sigma: " << sigma << "  r_dsigma2: " << r_dsigma2 << "  r2_d2sigma2: " << r2_d2sigma2 << std::endl;
+        std::cerr << "n_eff: " << n_eff << "  C: " << C << std::endl;
+        std::cerr << "y: " << y << "  fy: " << fy << "  omega_m: " << omega_m << "  omega_w: " << omega_w << "  f1: " << f1 << "  f2: " << f2 << "  f3: " << f3 << std::endl;
+        std::cerr << "a_n: " << a_n << "  b_n: " << b_n << "  c_n: " << c_n << "  gamma_n: " << gamma_n << "  alpha_n: " << alpha_n << "  beta_n: " << beta_n << std::endl;
+        std::cerr << "mu_n " << mu_n << "  nu_n: " << nu_n << "  p_q: " << p_q << "  p_h: " << p_h << "  p_lin: " << p_lin << "  p_nonlin: " << p_nonlin << std::endl;
+
+        exit(1);*/
+
+        return p_nonlin;
     }
 
     ~PS_HALOFIT()

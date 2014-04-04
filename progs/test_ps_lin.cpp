@@ -4,7 +4,6 @@
 #include "PS.h"
 #include "TF.h"
 #include "GF.h"
-#include "MF.h"
 
 const double G = 4.302e-9; // G in units of Mpc Msolar^-1 (km/s)^2
 
@@ -25,31 +24,26 @@ int main()
     GF* gf = new GF_LCDM();
     
     PS* ps = new PS_LSS(tf, gf, h, s8, ns);
+    //PS* ps_nonlin = new PS_HALOFIT(ps, Om);
     
-    /*double lnm_min = log(1.0e4 / p);
-    double lnm_max = log(1.0e20 / p);
+    double L = 10.0;
+    int N = 1000;
     
-    for(double lnm = lnm_min; lnm < lnm_max; lnm += log(1.1))
-    {
-        double r = exp(1.0/3.0 * (lnm + log(3.0 / (4.0 * M_PI))));
-        double var = ps->sigma2_gaussian(r, 0.0);
-        
-        std::cout << r << " " << var << std::endl;
-    }*/
-
+    //double kmin = 2.0 * M_PI / L * 0.001;
+    //double kmax = 2.0 * M_PI / L * N * 10.0;
     double logkmin = log(1/(1000.0));
     double logkmax = log(1/(0.0001));
-
-    int steps = 100000;
-
+    
+    int steps = 1000;
+    
     for(double logk = logkmin; logk < logkmax; logk += (logkmax-logkmin)/steps)
     {
         double k = exp(logk);
-        double r = 1.0 / k;
-
-        double var = ps->sigma2_gaussian(r, 0.0);
-
-        std::cout << r << " " << var << std::endl;
+        double pk = ps->p(k, 0.0);
+        //double pk_nonlin = ps_nonlin->p(k, 0.0);
+        
+        //std::cout << k << " " << pk << " " << pk_nonlin << std::endl;
+        std::cout << k << " " << pk << std::endl;
     }
     
     return 0;
