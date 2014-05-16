@@ -1,5 +1,6 @@
 
 #include <iostream>
+#include <cmath>
 
 #include "PS.h"
 #include "TF.h"
@@ -31,10 +32,10 @@ int main()
     
     //double kmin = 2.0 * M_PI / L * 0.001;
     //double kmax = 2.0 * M_PI / L * N * 10.0;
-    double logkmin = log(1/(1000.0));
-    double logkmax = log(1/(0.0001));
+    double logkmin = log(1/(100000.0));
+    double logkmax = log(1/(0.00001));
     
-    int steps = 1000;
+    int steps = 100000;
     
     for(double logk = logkmin; logk < logkmax; logk += (logkmax-logkmin)/steps)
     {

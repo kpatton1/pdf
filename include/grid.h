@@ -20,18 +20,68 @@ public:
 
     grid(int N)
     {
-        this->data = new gsl_complex[N*N];
         this->N = N;
-    };
+        this->data = new gsl_complex[N*N];
+    }
+
+    grid(grid& copy)
+    {
+        this->N = copy.N;
+        this->data = new gsl_complex[N*N];
+
+        for(int i = 0; i < this->N; i++)
+        {
+            for(int j = 0; j < this->N; j++)
+            {
+                double real = GSL_REAL(copy.data[i*copy.N+j]);
+                double imag = GSL_IMAG(copy.data[i*copy.N+j]);
+
+                this->set(i,j,real,imag);
+            }
+        }
+    }
+
+    grid(grid& copy, int factor)
+    {
+        if(factor <= 0)
+        {
+            factor = 1;
+        }
+        this->N = copy.N / factor;
+        this->data = new gsl_complex[N*N];
+
+        for(int i = 0; i < this->N; i++)
+        {
+            for(int j = 0; j < this->N; j++)
+            {
+                double real = 0.0;
+                double imag = 0.0;
+
+                for(int ci = 0; ci < factor; ci++)
+                {
+                    for(int cj = 0; cj < factor; cj++)
+                    {
+                        real = real + GSL_REAL(copy.data[(i*factor+ci)*copy.N+j*factor+cj]);
+                        imag = imag + GSL_IMAG(copy.data[(i*factor+ci)*copy.N+j*factor+cj]);
+                    }
+                }
+
+                real = real / factor / factor;
+                imag = imag / factor / factor;
+
+                this->set(i,j,real,imag);
+            }
+        }
+    }
 
     ~grid()
     {
         if(this->data)
         {
             free(this->data);
-            this->data = NULL;
+            this->data = 0;
         }
-    };
+    }
 
     void fft_l_to_x()
     {
@@ -54,7 +104,7 @@ public:
         gsl_fft_complex_wavetable_free(wavetable);
         gsl_fft_complex_workspace_free(workspace);
         
-    };
+    }
     
     
     void fft_x_to_l()
@@ -78,12 +128,22 @@ public:
         gsl_fft_complex_wavetable_free(wavetable);
         gsl_fft_complex_workspace_free(workspace);
         
-    };
+    }
 
     void set(int i, int j, double val1, double val2)
     {
         GSL_SET_COMPLEX(&this->data[i*this->N+j], val1, val2);
-    };
+    }
+
+    double get_real(int i, int j)
+    {
+        return GSL_REAL(this->data[i*this->N+j]);
+    }
+
+    double get_imag(int i, int j)
+    {
+        return GSL_IMAG(this->data[i*this->N+j]);
+    }
 
 /*    void fill( double (*f)(double) )
     {
@@ -143,7 +203,7 @@ public:
                 this->set(i,j,real,imag);
             }
         }
-    };
+    }
     
     void print_ps( void(*print)(double, double))
     {
@@ -171,7 +231,7 @@ public:
                 print(l, Pl);
             }
         }
-    };
+    }
     
     void remap_field_cdf(CDF* gaussian, CDF* target)
     {
@@ -188,11 +248,161 @@ public:
                 
                 double x = target->cdf_inv(cdf);
                 
+                //std::cout << temp << " " << x << std::endl;
+
                 this->set(i,j,x,0.0);
             }
         }
-    };
+    }
+
+    void output_remap_and_reduce(CDF* gaussian, CDF* target, int factor)
+    {
+        if(factor <= 0)
+        {
+            factor = 1;
+        }
+
+        int N_factor = this->N / factor;
+
+        for(int i = 0; i < N_factor; i++)
+        {
+            for(int j = 0; j < N_factor; j++)
+            {
+                double real = 0.0;
+                double remapped = 0.0;
+
+                for(int ci = 0; ci < factor; ci++)
+                {
+                    for(int cj = 0; cj < factor; cj++)
+                    {
+                        double val = GSL_REAL(this->data[(i*factor+ci)*this->N+j*factor+cj]);
+                        real = real + val;
+
+                        double cdf = gaussian->cdf(real);
+
+                        double x = target->cdf_inv(cdf);
+
+                        remapped = remapped + x;
+                    }
+                }
+
+                real = real / factor / factor;
+                remapped = remapped / factor / factor;
+
+                std::cout << real << " " << remapped << std::endl;
+            }
+        }
+    }
+
+    void apply_filter_shear1(double e_crit)
+    {
+        for(int i = 0; i < this->N; i++)
+        {
+            for(int j = 0; j < this->N; j++)
+            {
+                double real = GSL_REAL(this->data[i*this->N+j]);
+                double imag = GSL_IMAG(this->data[i*this->N+j]);
+
+                if(i != 0 || j != 0)
+                {
+                    double filter = (i*i - j*j) / (i*i + j*j) / e_crit;
+                    this->set(i,j,real*filter,imag*filter);
+                }
+                else
+                {
+                    double filter = 0.0;
+                    this->set(i,j,real*filter,imag*filter);
+                }
+            }
+        }
+    }
     
+    void reverse_filter_shear1(double e_crit)
+    {
+        for(int i = 0; i < this->N; i++)
+        {
+            for(int j = 0; j < this->N; j++)
+            {
+                double real = GSL_REAL(this->data[i*this->N+j]);
+                double imag = GSL_IMAG(this->data[i*this->N+j]);
+
+                if(i != j)
+                {
+                    double filter = e_crit * (i*i - j*j) / (i*i + j*j);
+                    //filter = filter * exp(-i*i - j*j);
+                    this->set(i,j,real*filter,imag*filter);
+                }
+                else
+                {
+                    double filter = 0.0;
+                    this->set(i,j,real*filter,imag*filter);
+                }
+            }
+        }
+    }
+
+    void apply_filter_shear2(double e_crit)
+    {
+        for(int i = 0; i < this->N; i++)
+        {
+            for(int j = 0; j < this->N; j++)
+            {
+                double real = GSL_REAL(this->data[i*this->N+j]);
+                double imag = GSL_IMAG(this->data[i*this->N+j]);
+
+                if(i != 0 && j != 0)
+                {
+                    double filter = (2.0*i*j) / (i*i + j*j) / e_crit;
+                    this->set(i,j,real*filter,imag*filter);
+                }
+                else
+                {
+                    double filter = 0.0;
+                    this->set(i,j,real*filter,imag*filter);
+                }
+            }
+        }
+    }
+
+    void reverse_filter_shear2(double e_crit)
+    {
+        for(int i = 0; i < this->N; i++)
+        {
+            for(int j = 0; j < this->N; j++)
+            {
+                double real = GSL_REAL(this->data[i*this->N+j]);
+                double imag = GSL_IMAG(this->data[i*this->N+j]);
+
+                if(i != 0 && j != 0)
+                {
+                    double filter = e_crit * (2.0 * i * j) / (i*i + j*j);
+                    //filter = filter * exp(-i*i - j*j);
+                    this->set(i,j,real*filter,imag*filter);
+                }
+                else
+                {
+                    double filter = 0.0;
+                    this->set(i,j,real*filter,imag*filter);
+                }
+            }
+        }
+    }
+
+    void add_noise(double sigma, gsl_rng* rng)
+    {
+        for(int i = 0; i < this->N; i++)
+        {
+            for(int j = 0; j < this->N; j++)
+            {
+                double real = GSL_REAL(this->data[i*this->N+j]);
+                double noise = gsl_ran_gaussian(rng, sigma);
+
+                this->set(i,j,real+noise,0.0);
+
+            }
+        }
+    }
+
     double expected_var( double(*f)(double), gsl_rng* rng)
     {
         double xx = 0.0;
@@ -221,7 +431,7 @@ public:
         }
         
         return xx * 0.5;
-    };
+    }
     
     
     double var()
@@ -252,7 +462,7 @@ public:
         xx = xx - x*x;
         
         return xx;
-    };
+    }
 
     double mean()
     {
@@ -279,7 +489,7 @@ public:
         //xx = xx - x*x;
         
         return x;
-    };
+    }
 
 
 };

@@ -37,7 +37,7 @@ int main()
         double r = exp(1.0/3.0 * (lnm + log(3.0 / (4.0 * M_PI))));
         double k = 1.0/r;
         double pk = ps->p(k, 0.0);
-        double var = ps->var(r, 0.0);
+        double var = ps->sigma2_tophat(r, 0.0);
         double dndlnm = mf->dn_dlnm(lnm, 0.0);
         
         std::cout << m << " " << r << " " << k << " " << pk << " " << var << " " << exp(lnm) << " " << dndlnm << std::endl;

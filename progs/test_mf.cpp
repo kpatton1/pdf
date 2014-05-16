@@ -1,5 +1,6 @@
 
 #include <iostream>
+#include <cmath>
 
 #include "PS.h"
 #include "TF.h"
@@ -37,7 +38,7 @@ int main()
         
         double r200 = exp(1.0/3.0 * (lnm + log(3.0 / (800.0 * M_PI))));
         
-        std::cout << exp(lnm) * p << " " << lnm << " " << mdn_dlnm << " " << r200 << std::endl;
+        std::cout << exp(lnm) * p << " " << (lnm+log(p))/log(10.0) << " " << log(10.0)*mdn_dlnm << " " << r200 << std::endl;
     }
     
     return 0;

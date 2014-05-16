@@ -25,6 +25,9 @@ int main()
             break;
         }
 
+        x = exp(x);
+        y = y / x;
+
         if (i > 0 && x <= x_array[i - 1])
         {
             continue;
